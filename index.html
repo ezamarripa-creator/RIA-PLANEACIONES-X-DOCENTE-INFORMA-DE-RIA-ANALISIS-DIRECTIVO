@@ -1,209 +1,196 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<title>Dashboard Académico Directivo</title>
-<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-<style>
-body{font-family:Arial;margin:20px;background:#f4f6f9}
-h2{margin-bottom:5px}
-.container{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:15px}
-.kpi{background:#fff;padding:15px;border-radius:6px;text-align:center;box-shadow:0 2px 4px rgba(0,0,0,.1)}
-.filters{background:#fff;padding:10px;border-radius:6px;margin-bottom:15px;display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
-select,input{padding:5px;width:100%}
-.chart{background:#fff;padding:10px;border-radius:6px;margin-bottom:15px}
-table{width:100%;border-collapse:collapse;background:#fff}
-th,td{border:1px solid #ddd;padding:6px;font-size:12px}
-th{background:#2c3e50;color:#fff}
-.overload{background:#ffcccc}
-</style>
+    <meta charset="UTF-8">
+    <title>Dashboard Académico Directivo</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        body{font-family:Arial;margin:20px;background:#f4f6f9}
+        h2{margin-bottom:5px}
+        .container{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:15px}
+        .kpi{background:#fff;padding:15px;border-radius:6px;text-align:center;box-shadow:0 2px 4px rgba(0,0,0,.1)}
+        .filters{background:#fff;padding:10px;border-radius:6px;margin-bottom:15px;display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+        select,input{padding:5px;width:100%}
+        .chart{background:#fff;padding:10px;border-radius:6px;margin-bottom:15px}
+        table{width:100%;border-collapse:collapse;background:#fff}
+        th,td{border:1px solid #ddd;padding:6px;font-size:12px}
+        th{background:#2c3e50;color:#fff}
+        .overload{background:#ffcccc}
+    </style>
 </head>
 <body>
 
-<h2>Dashboard Académico Directivo</h2>
+    <h2>Dashboard Académico Directivo</h2>
 
-<input type="file" id="fileInput" accept=".json" style="margin-bottom: 10px;">
+    <div class="container">
+        <div class="kpi"><b>Planteles</b><div id="kpiPlanteles">0</div></div>
+        <div class="kpi"><b>Docentes</b><div id="kpiDocentes">0</div></div>
+        <div class="kpi"><b>Materias</b><div id="kpiMaterias">0</div></div>
+        <div class="kpi"><b>Alerta Sobrecarga</b><div id="kpiSobrecarga">0</div></div>
+    </div>
 
-<div class="container">
-<div class="kpi"><b>Planteles</b><div id="kpiPlanteles">0</div></div>
-<div class="kpi"><b>Docentes</b><div id="kpiDocentes">0</div></div>
-<div class="kpi"><b>Materias</b><div id="kpiMaterias">0</div></div>
-<div class="kpi"><b>Alerta Sobrecarga</b><div id="kpiSobrecarga">0</div></div>
-</div>
+    <div class="filters">
+        <select id="fPlantel"><option value="">Plantel</option></select>
+        <select id="fSemestre"><option value="">Semestre</option></select>
+        <select id="fTurno"><option value="">Turno</option></select>
+        <select id="fMateria"><option value="">Materia</option></select>
+        <select id="fDocente"><option value="">Docente</option></select>
+    </div>
 
-<div class="filters">
-<select id="fPlantel"><option value="">Plantel</option></select>
-<select id="fSemestre"><option value="">Semestre</option></select>
-<select id="fTurno"><option value="">Turno</option></select>
-<select id="fMateria"><option value="">Materia</option></select>
-<select id="fDocente"><option value="">Docente</option></select>
-</div>
+    <div class="chart" id="chartPlanteles"></div>
+    <div class="chart" id="chartSemestre"></div>
 
-<div class="chart" id="chartPlanteles"></div>
-<div class="chart" id="chartSemestre"></div>
+    <h3>Detalle de Registros</h3>
+    <table id="tabla">
+        <thead>
+            <tr>
+                <th>Plantel</th>
+                <th>Semestre</th>
+                <th>Turno</th>
+                <th>Materia</th>
+                <th>Docente</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
 
-<h3>Detalle de Registros</h3>
-<table id="tabla">
-<thead>
-<tr>
-<th>Plantel</th>
-<th>Semestre</th>
-<th>Turno</th>
-<th>Materia</th>
-<th>Docente</th>
-</tr>
-</thead>
-<tbody></tbody>
-</table>
+    <script>
+        let dataGlobal = [];
+        // REEMPLAZA ESTA URL con el link "Raw" de tu archivo datos.json en GitHub
+        const GITHUB_DATA_URL = 'datos.json'; 
 
-<script>
-let dataGlobal = [];
-// REEMPLAZA ESTA URL con el link "Raw" de tu archivo datos.json en GitHub
-const GITHUB_DATA_URL = 'datos.json'; // Esto buscará el archivo en la misma carpeta del sitio
+        window.onload = function(){
+            // Intentar cargar desde GitHub/Local Server primero
+            fetch(GITHUB_DATA_URL)
+                .then(response => {
+                    if (!response.ok) throw new Error("Error al cargar desde el archivo JSON");
+                    return response.json();
+                })
+                .then(json => {
+                    dataGlobal = json;
+                    console.log("Datos cargados correctamente");
+                    initDashboard();
+                })
+                .catch(err => {
+                    console.warn(err.message, "Intentando cargar desde localStorage...");
+                    let saved = localStorage.getItem("dataAcademica");
+                    if(saved){
+                        dataGlobal = JSON.parse(saved);
+                        initDashboard();
+                    }
+                });
+        }
 
-window.onload = function(){
-    // Intentar cargar desde GitHub primero
-    fetch(GITHUB_DATA_URL)
-        .then(response => {
-            if (!response.ok) throw new Error("Error al cargar desde GitHub");
-            return response.json();
-        })
-        .then(json => {
-            dataGlobal = json;
-            console.log("Datos cargados desde GitHub");
-            initDashboard();
-        })
-        .catch(err => {
-            console.warn(err.message, "Intentando cargar desde localStorage...");
-            let saved = localStorage.getItem("dataAcademica");
-            if(saved){
-                dataGlobal = JSON.parse(saved);
-                initDashboard();
+        function initDashboard(){
+            fillFilters();
+            applyFilters();
+        }
+
+        function fillFilters(){
+            fillSelect('fPlantel','plantel');
+            fillSelect('fSemestre','semestre');
+            fillSelect('fTurno','turno');
+            fillSelect('fMateria','materia');
+            fillSelect('fDocente','nombre_doc');
+        }
+
+        function fillSelect(id,field){
+            let sel=document.getElementById(id);
+            let vals=[...new Set(dataGlobal.map(d=>d[field]))].sort();
+            sel.innerHTML='<option value="">Todos</option>';
+            vals.forEach(v=>{
+                let op=document.createElement('option');
+                op.value=v; op.text=v;
+                sel.appendChild(op);
+            });
+            sel.onchange=applyFilters;
+        }
+
+        function applyFilters(){
+            let fValues = fPlantelVal();
+            let filtered = dataGlobal.filter(d =>
+                (!fValues.plantel || d.plantel == fValues.plantel) &&
+                (!fValues.semestre || d.semestre == fValues.semestre) &&
+                (!fValues.turno || d.turno == fValues.turno) &&
+                (!fValues.materia || d.materia == fValues.materia) &&
+                (!fValues.docente || d.nombre_doc == fValues.docente)
+            );
+
+            updateKPIs(filtered);
+            updateCharts(filtered);
+            updateTable(filtered);
+        }
+
+        function fPlantelVal(){
+            return{
+                plantel:document.getElementById('fPlantel').value,
+                semestre:document.getElementById('fSemestre').value,
+                turno:document.getElementById('fTurno').value,
+                materia:document.getElementById('fMateria').value,
+                docente:document.getElementById('fDocente').value
             }
-        });
-}
+        }
 
-// Cargar archivo local manualmente (opcional)
-document.getElementById('fileInput').addEventListener('change', function(e){
-    let reader = new FileReader();
-    reader.onload = function(){
-        dataGlobal = JSON.parse(reader.result);
-        localStorage.setItem("dataAcademica", JSON.stringify(dataGlobal));
-        initDashboard();
-    }
-    reader.readAsText(e.target.files[0]);
-});
+        function unique(arr,field){return new Set(arr.map(d=>d[field])).size;}
 
-function initDashboard(){
-    fillFilters();
-    applyFilters();
-}
+        function updateKPIs(data){
+            document.getElementById('kpiPlanteles').innerText=unique(data,'plantel');
+            document.getElementById('kpiDocentes').innerText=unique(data,'nombre_doc');
+            document.getElementById('kpiMaterias').innerText=unique(data,'materia');
 
-function fillFilters(){
-    fillSelect('fPlantel','plantel');
-    fillSelect('fSemestre','semestre');
-    fillSelect('fTurno','turno');
-    fillSelect('fMateria','materia');
-    fillSelect('fDocente','nombre_doc');
-}
+            let cargas={};
+            data.forEach(d=>{
+                cargas[d.nombre_doc]=(cargas[d.nombre_doc]||0)+1;
+            });
+            let sobre=Object.values(cargas).filter(v=>v>3).length;
+            document.getElementById('kpiSobrecarga').innerText=sobre;
+        }
 
-function fillSelect(id,field){
-    let sel=document.getElementById(id);
-    let vals=[...new Set(dataGlobal.map(d=>d[field]))].sort();
-    sel.innerHTML='<option value="">Todos</option>';
-    vals.forEach(v=>{
-        let op=document.createElement('option');
-        op.value=v; op.text=v;
-        sel.appendChild(op);
-    });
-    sel.onchange=applyFilters;
-}
+        function countBy(data,field){
+            let c={};
+            data.forEach(d=>c[d[field]]=(c[d[field]]||0)+1);
+            return c;
+        }
 
-function applyFilters(){
-    let fValues = fPlantelVal();
-    let filtered = dataGlobal.filter(d =>
-        (!fValues.plantel || d.plantel == fValues.plantel) &&
-        (!fValues.semestre || d.semestre == fValues.semestre) &&
-        (!fValues.turno || d.turno == fValues.turno) &&
-        (!fValues.materia || d.materia == fValues.materia) &&
-        (!fValues.docente || d.nombre_doc == fValues.docente)
-    );
+        function updateCharts(data){
+            let p=countBy(data,'plantel');
+            let sorted=Object.entries(p).sort((a,b)=>b[1]-a[1]).slice(0,10);
+            Plotly.newPlot('chartPlanteles',[{
+                x:sorted.map(i=>i[1]),
+                y:sorted.map(i=>i[0]),
+                type:'bar',
+                orientation:'h'
+            }],{title:'Top 10 Planteles',margin:{l:150}});
 
-    updateKPIs(filtered);
-    updateCharts(filtered);
-    updateTable(filtered);
-}
+            let s=countBy(data,'semestre');
+            Plotly.newPlot('chartSemestre',[{
+                labels:Object.keys(s),
+                values:Object.values(s),
+                type:'pie'
+            }],{title:'Distribución por Semestre'});
+        }
 
-function fPlantelVal(){
-    return{
-        plantel:document.getElementById('fPlantel').value,
-        semestre:document.getElementById('fSemestre').value,
-        turno:document.getElementById('fTurno').value,
-        materia:document.getElementById('fMateria').value,
-        docente:document.getElementById('fDocente').value
-    }
-}
+        function updateTable(data){
+            let tbody=document.querySelector('#tabla tbody');
+            tbody.innerHTML='';
 
-function unique(arr,field){return new Set(arr.map(d=>d[field])).size;}
+            let cargas={};
+            data.forEach(d=>cargas[d.nombre_doc]=(cargas[d.nombre_doc]||0)+1);
 
-function updateKPIs(data){
-    document.getElementById('kpiPlanteles').innerText=unique(data,'plantel');
-    document.getElementById('kpiDocentes').innerText=unique(data,'nombre_doc');
-    document.getElementById('kpiMaterias').innerText=unique(data,'materia');
+            data.forEach(d=>{
+                let tr=document.createElement('tr');
+                if(cargas[d.nombre_doc]>3) tr.classList.add('overload');
 
-    let cargas={};
-    data.forEach(d=>{
-        cargas[d.nombre_doc]=(cargas[d.nombre_doc]||0)+1;
-    });
-    let sobre=Object.values(cargas).filter(v=>v>3).length;
-    document.getElementById('kpiSobrecarga').innerText=sobre;
-}
-
-function countBy(data,field){
-    let c={};
-    data.forEach(d=>c[d[field]]=(c[d[field]]||0)+1);
-    return c;
-}
-
-function updateCharts(data){
-    let p=countBy(data,'plantel');
-    let sorted=Object.entries(p).sort((a,b)=>b[1]-a[1]).slice(0,10);
-    Plotly.newPlot('chartPlanteles',[{
-        x:sorted.map(i=>i[1]),
-        y:sorted.map(i=>i[0]),
-        type:'bar',
-        orientation:'h'
-    }],{title:'Top 10 Planteles',margin:{l:150}});
-
-    let s=countBy(data,'semestre');
-    Plotly.newPlot('chartSemestre',[{
-        labels:Object.keys(s),
-        values:Object.values(s),
-        type:'pie'
-    }],{title:'Distribución por Semestre'});
-}
-
-function updateTable(data){
-    let tbody=document.querySelector('#tabla tbody');
-    tbody.innerHTML='';
-
-    let cargas={};
-    data.forEach(d=>cargas[d.nombre_doc]=(cargas[d.nombre_doc]||0)+1);
-
-    data.forEach(d=>{
-        let tr=document.createElement('tr');
-        if(cargas[d.nombre_doc]>3) tr.classList.add('overload');
-
-        tr.innerHTML=`
-            <td>${d.plantel}</td>
-            <td>${d.semestre}</td>
-            <td>${d.turno}</td>
-            <td>${d.materia}</td>
-            <td>${d.nombre_doc}</td>
-        `;
-        tbody.appendChild(tr);
-    });
-}
-</script>
+                tr.innerHTML=`
+                    <td>${d.plantel}</td>
+                    <td>${d.semestre}</td>
+                    <td>${d.turno}</td>
+                    <td>${d.materia}</td>
+                    <td>${d.nombre_doc}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+    </script>
 </body>
 </html>
