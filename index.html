@@ -295,7 +295,7 @@
         <div id="chartPlanteles" style="height: 420px; width: 100%;"></div>
     </div>
     <div class="chart-card">
-        <h4>Pie Distribución por Semestre</h4>
+        <h4>Distribución por Semestre</h4>
         <div id="chartSemestre" style="height: 420px; width: 100%;"></div>
     </div>
 </div>
@@ -314,47 +314,39 @@
                 </tr>
             </thead>
             <tbody id="tbodyRegistros">
-                <tr><td colspan="5" style="text-align:center;">Cargando datos desde repositorio...</td></tr>
+                <tr><td colspan="5" style="text-align:center;">Cargando datos...</td></tr>
             </tbody>
         </table>
     </div>
 </div>
 
 <div class="footer-note">
-    Panel académico actualizado · Visualización estratégica de datos de repositorio GitHub.
+    Panel académico actualizado · Visualización de repositorio GitHub.
 </div>
 
 <script>
     let dataGlobal = [];
-    // Llamada solicitada: busca el archivo en la misma carpeta del sitio.
     const GITHUB_DATA_URL = 'datos.json';
 
     window.onload = function() {
-        // Carga de datos desde GitHub
         fetch(GITHUB_DATA_URL)
             .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: No se encontró el archivo en el repositorio`);
-                }
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 return response.json();
             })
             .then(json => {
-                if (Array.isArray(json) && json.length) {
-                    dataGlobal = json;
-                    console.log("✅ Datos cargados exitosamente desde GitHub");
-                    initDashboard();
-                } else {
-                    throw new Error("Formato de datos no válido");
-                }
+                dataGlobal = Array.isArray(json) ? json : [];
+                initDashboard();
             })
             .catch(err => {
-                console.error("⚠️ Error al cargar datos:", err.message);
+                console.error("Error:", err.message);
                 document.getElementById('tbodyRegistros').innerHTML = 
                     `<tr><td colspan="5" style="text-align:center; color:red;">Error al cargar datos.json: ${err.message}</td></tr>`;
             });
     };
 
     function initDashboard() {
+        if (dataGlobal.length === 0) return;
         poblarFiltros();
         aplicarFiltros();
     }
@@ -370,7 +362,12 @@
     function poblarSelectUnico(idSelect, campo) {
         const select = document.getElementById(idSelect);
         if (!select) return;
-        const valoresUnicos = [...new Set(dataGlobal.map(item => item[campo]))].sort((a,b) => (a || '').localeCompare(b || ''));
+        
+        // CORRECCIÓN: Aseguramos que el valor sea String para evitar el error de localeCompare
+        const valoresUnicos = [...new Set(dataGlobal.map(item => String(item[campo] || "")))]
+            .filter(v => v !== "")
+            .sort((a, b) => a.localeCompare(b));
+
         select.innerHTML = '<option value="">Todos</option>';
         valoresUnicos.forEach(val => {
             const option = document.createElement('option');
@@ -391,11 +388,11 @@
         };
 
         const datosFiltrados = dataGlobal.filter(d =>
-            (!filtros.plantel || d.plantel === filtros.plantel) &&
-            (!filtros.semestre || d.semestre === filtros.semestre) &&
-            (!filtros.turno || d.turno === filtros.turno) &&
-            (!filtros.materia || d.materia === filtros.materia) &&
-            (!filtros.docente || d.nombre_doc === filtros.docente)
+            (!filtros.plantel || String(d.plantel) === filtros.plantel) &&
+            (!filtros.semestre || String(d.semestre) === filtros.semestre) &&
+            (!filtros.turno || String(d.turno) === filtros.turno) &&
+            (!filtros.materia || String(d.materia) === filtros.materia) &&
+            (!filtros.docente || String(d.nombre_doc) === filtros.docente)
         );
 
         actualizarKPIs(datosFiltrados);
@@ -404,57 +401,41 @@
     }
 
     function actualizarKPIs(data) {
-        const totalPlanteles = new Set(data.map(d => d.plantel)).size;
-        const totalDocentes = new Set(data.map(d => d.nombre_doc)).size;
-        const totalMaterias = new Set(data.map(d => d.materia)).size;
+        document.getElementById('kpiPlanteles').innerText = new Set(data.map(d => d.plantel)).size;
+        document.getElementById('kpiDocentes').innerText = new Set(data.map(d => d.nombre_doc)).size;
+        document.getElementById('kpiMaterias').innerText = new Set(data.map(d => d.materia)).size;
 
-        const cargaDocente = new Map();
-        data.forEach(reg => {
-            cargaDocente.set(reg.nombre_doc, (cargaDocente.get(reg.nombre_doc) || 0) + 1);
-        });
-        let docentesSobrecarga = 0;
-        cargaDocente.forEach(val => { if(val > 3) docentesSobrecarga++; });
-
-        document.getElementById('kpiPlanteles').innerText = totalPlanteles;
-        document.getElementById('kpiDocentes').innerText = totalDocentes;
-        document.getElementById('kpiMaterias').innerText = totalMaterias;
-        document.getElementById('kpiSobrecarga').innerText = docentesSobrecarga;
+        const carga = {};
+        data.forEach(r => carga[r.nombre_doc] = (carga[r.nombre_doc] || 0) + 1);
+        let sobrecarga = Object.values(carga).filter(v => v > 3).length;
+        document.getElementById('kpiSobrecarga').innerText = sobrecarga;
     }
 
     function actualizarGraficos(data) {
-        // Gráfico de Barras Planteles
-        const conteoPlantel = {};
-        data.forEach(d => conteoPlantel[d.plantel] = (conteoPlantel[d.plantel] || 0) + 1);
-        const sortedPlanteles = Object.entries(conteoPlantel).sort((a,b) => b[1]-a[1]).slice(0,10);
+        // Barras
+        const counts = {};
+        data.forEach(d => counts[d.plantel] = (counts[d.plantel] || 0) + 1);
+        const sorted = Object.entries(counts).sort((a,b) => b[1]-a[1]).slice(0,10);
 
         Plotly.newPlot('chartPlanteles', [{
-            x: sortedPlanteles.map(e => e[1]),
-            y: sortedPlanteles.map(e => e[0]),
-            type: 'bar',
-            orientation: 'h',
-            marker: { color: '#2c6e9e' }
-        }], {
-            margin: { l: 150, r: 20, t: 30, b: 40 },
-            yaxis: { automargin: true }
-        }, {responsive: true});
+            x: sorted.map(e => e[1]),
+            y: sorted.map(e => e[0]),
+            type: 'bar', orientation: 'h', marker: { color: '#2c6e9e' }
+        }], { margin: { l: 150, r: 20, t: 10, b: 40 } }, {responsive: true});
 
-        // Gráfico de Pie Semestre
-        const conteoSemestre = {};
-        data.forEach(d => conteoSemestre[d.semestre] = (conteoSemestre[d.semestre] || 0) + 1);
-
+        // Pie
+        const semCounts = {};
+        data.forEach(d => semCounts[d.semestre] = (semCounts[d.semestre] || 0) + 1);
         Plotly.newPlot('chartSemestre', [{
-            labels: Object.keys(conteoSemestre),
-            values: Object.values(conteoSemestre),
-            type: 'pie',
-            hole: 0.4
-        }], {
-            margin: { l: 20, r: 20, t: 30, b: 20 }
-        }, {responsive: true});
+            labels: Object.keys(semCounts),
+            values: Object.values(semCounts),
+            type: 'pie', hole: 0.4
+        }], { margin: { t: 10, b: 10, l: 10, r: 10 } }, {responsive: true});
     }
 
     function getMateriaColorClass(materia) {
         if (!materia) return 'badge-default';
-        const m = materia.toLowerCase();
+        const m = String(materia).toLowerCase();
         if (m.includes('estudio') || m.includes('literatura') || m.includes('inglés')) return 'badge-estudios';
         if (m.includes('biolo') || m.includes('física') || m.includes('química') || m.includes('programación')) return 'badge-ciencias';
         if (m.includes('mate') || m.includes('calculo')) return 'badge-matematicas';
@@ -465,15 +446,13 @@
 
     function actualizarTablaDetalle(data) {
         const tbody = document.getElementById('tbodyRegistros');
-        const registrosMostrar = data.slice(0, 100); // Limitamos a 100 por rendimiento
         let html = '';
-        registrosMostrar.forEach(reg => {
-            const mClass = getMateriaColorClass(reg.materia);
+        data.slice(0, 100).forEach(reg => {
             html += `<tr>
                 <td>${reg.plantel}</td>
                 <td>${reg.semestre}</td>
                 <td>${reg.turno}</td>
-                <td><span class="badge-materia ${mClass}">${reg.materia}</span></td>
+                <td><span class="badge-materia ${getMateriaColorClass(reg.materia)}">${reg.materia}</span></td>
                 <td>${reg.nombre_doc}</td>
             </tr>`;
         });
